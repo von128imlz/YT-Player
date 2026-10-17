@@ -21,14 +21,39 @@ html,body{margin:0;height:100%;background:#000;color:#ddd;font-family:system-ui,
   var id=q.get("v")||"";
   var vol=Math.max(0,Math.min(100,Number(q.get("vol")||50)));
   var player=null,ready=false,pending=null,ID=/^[\w-]{6,15}$/;
-  function send(m){m.vonyt=1;try{parent.postMessage(m,"*")}catch(e){}}
+
+  function extractYouTubeId(input){
+    var value = input && String(input).trim();
+    if(!value) return "";
+
+    var simpleId = value.match(/^[\w-]{6,15}$/);
+    if(simpleId) return simpleId[0];
+
+    try {
+      var url = new URL(value);
+      if(url.hostname.indexOf("youtu.be") !== -1){
+        var shortId = url.pathname.replace(/^\//, "").match(/^[\w-]{6,15}$/);
+        if(shortId) return shortId[0];
+      }
+      var watchId = url.searchParams.get("v");
+      if(watchId && watchId.match(/^[\w-]{6,15}$/)) return watchId;
+      var embedMatch = url.pathname.match(/\/embed\/([\w-]{6,15})/);
+      if(embedMatch) return embedMatch[1];
+    } catch(e) {}
+
+    var found = value.match(/[\w-]{6,15}/);
+    return found ? found[0] : "";
+  }
+
+  function send(m){m.vonyt=1;try{parent.postMessage(m,"*")}catch(e){} }
   function show(t){var m=document.getElementById("msg");m.textContent=t;m.style.display="flex"}
   function create(v){
-    if(!ID.test(v)){show("No valid YouTube video id.");send({type:"error",code:2});return}
-    if(player){try{player.loadVideoById(v)}catch(e){}return}
+    var ytId = extractYouTubeId(v);
+    if(!ytId || !ID.test(ytId)){show("No valid YouTube video id.");send({type:"error",code:2});return}
+    if(player){try{player.loadVideoById(ytId)}catch(e){}return}
     window.onYouTubeIframeAPIReady=function(){
-      player=new YT.Player("p",{width:"100%",height:"100%",videoId:v,
-        playerVars:{autoplay:1,controls:1,playsinline:1,loop:1,playlist:v,rel:0,modestbranding:1,origin:location.origin},
+      player=new YT.Player("p",{width:"100%",height:"100%",videoId:ytId,
+        playerVars:{autoplay:1,controls:1,playsinline:1,loop:1,playlist:ytId,rel:0,modestbranding:1,origin:location.origin},
         events:{
           onReady:function(){ready=true;try{player.setVolume(vol)}catch(e){}send({type:"ready"});if(pending){run(pending);pending=null}},
           onStateChange:function(e){
